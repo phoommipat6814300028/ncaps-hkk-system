@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard สถิติกล้อง NCAPs</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Sarabun',sans-serif}
+  .card{background:#fff;border-radius:.9rem;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:1rem}
+  .kpi{border-left:5px solid;transition:.2s}
+  .kpi:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,.12)}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:4px}
+  @media print{.noprint{display:none}}
+</style>
+</head>
+<body class="bg-slate-100">
+
+<header class="bg-gradient-to-r from-emerald-800 to-emerald-600 text-white px-4 py-3 shadow-lg sticky top-0 z-40">
+  <div class="max-w-[1500px] mx-auto flex items-center gap-3 flex-wrap">
+    <div class="text-2xl">📊</div>
+    <div class="flex-1 min-w-[200px]">
+      <h1 class="font-bold text-lg leading-tight">Dashboard สถิติกล้อง NCAPs</h1>
+      <p class="text-emerald-100 text-xs">ห้วยขาแข้ง · <span id="stamp">กำลังโหลด…</span></p>
+    </div>
+    <div class="flex gap-2 noprint">
+      <select id="yr" onchange="renderAll()" class="text-slate-800 rounded-lg px-3 py-2 text-sm"></select>
+      <a href="?page=index" target="_top" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm">🗺️ แผนที่</a>
+      <button onclick="load()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm">🔄</button>
+      <button onclick="window.print()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm">🖨️</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1500px] mx-auto p-3 space-y-3">
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div class="card kpi" style="border-color:#059669">
+      <div class="text-xs text-slate-500">กล้องออนไลน์</div>
+      <div class="text-3xl font-bold text-emerald-600" id="k-online">–</div>
+      <div class="text-xs text-slate-400" id="k-online-pct">–</div></div>
+    <div class="card kpi" style="border-color:#0284c7">
+      <div class="text-xs text-slate-500">สแตนด์บาย (ในคลัง)</div>
+      <div class="text-3xl font-bold text-sky-600" id="k-standby">–</div>
+      <div class="text-xs text-slate-400">พร้อมนำไปติดตั้ง</div></div>
+    <div class="card kpi" style="border-color:#64748b">
+      <div class="text-xs text-slate-500">ถอนแล้ว</div>
+      <div class="text-3xl font-bold text-slate-500" id="k-removed">–</div>
+      <div class="text-xs text-slate-400" id="k-removed-yr">–</div></div>
+    <div class="card kpi" style="border-color:#7c3aed">
+      <div class="text-xs text-slate-500">กล้องทั้งหมด</div>
+      <div class="text-3xl font-bold text-violet-600" id="k-total">–</div>
+      <div class="text-xs text-slate-400">ในระบบ</div></div>
+    <div class="card kpi" style="border-color:#d97706">
+      <div class="text-xs text-slate-500">SIM ใกล้หมดโปรฯ</div>
+      <div class="text-3xl font-bold text-amber-600" id="k-simwarn">–</div>
+      <div class="text-xs text-slate-400">ภายใน 30 วัน</div></div>
+    <div class="card kpi" style="border-color:#dc2626">
+      <div class="text-xs text-slate-500">SIM หมดโปรฯ แล้ว</div>
+      <div class="text-3xl font-bold text-red-600" id="k-simexp">–</div>
+      <div class="text-xs text-slate-400">ต้องต่ออายุด่วน</div></div>
+  </div>
+
+  <div class="grid lg:grid-cols-3 gap-3">
+    <div class="card lg:col-span-2">
+      <h2 class="font-bold text-slate-700 text-sm mb-2">📈 การติดตั้ง / ถอนกล้อง รายเดือน <span id="lbl-yr" class="text-emerald-600"></span></h2>
+      <div style="height:300px"><canvas id="ch1"></canvas></div></div>
+    <div class="card">
+      <h2 class="font-bold text-slate-700 text-sm mb-2">📶 สัดส่วนความแรงสัญญาณ</h2>
+      <div style="height:300px"><canvas id="ch2"></canvas></div></div>
+  </div>
+
+  <div class="grid lg:grid-cols-3 gap-3">
+    <div class="card lg:col-span-2">
+      <h2 class="font-bold text-slate-700 text-sm mb-2">📊 จำนวนกล้องออนไลน์สะสม (12 เดือนย้อนหลัง)</h2>
+      <div style="height:280px"><canvas id="ch3"></canvas></div></div>
+    <div class="card">
+      <h2 class="font-bold text-slate-700 text-sm mb-2">⛔ เหตุผลการถอนกล้อง</h2>
+      <div style="height:280px"><canvas id="ch4"></canvas></div></div>
+  </div>
+
+  <div class="grid lg:grid-cols-3 gap-3">
+    <div class="card">
+      <h2 class="font-bold text-slate-700 text-sm mb-2">📱 SIM แยกตามค่ายมือถือ</h2>
+      <div style="height:250px"><canvas id="ch5"></canvas></div></div>
+    <div class="card">
+      <h2 class="font-bold text-slate-700 text-sm mb-2">⏳ สถานะโปรโมชั่น SIM</h2>
+      <div style="height:250px"><canvas id="ch6"></canvas></div></div>
+    <div class="card">
+      <h2 class="font-bold text-slate-700 text-sm mb-2">🔥 SIM ที่ต้องต่ออายุเร่งด่วน</h2>
+      <div id="simurgent" class="overflow-auto text-xs" style="height:250px"></div></div>
+  </div>
+
+  <div class="grid lg:grid-cols-2 gap-3">
+    <div class="card">
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="font-bold text-slate-700 text-sm">📋 สรุปรายเดือน <span id="lbl-yr2" class="text-emerald-600"></span></h2>
+        <button onclick="exportTable()" class="text-xs text-emerald-700 hover:underline noprint">⬇ CSV</button>
+      </div>
+      <div class="overflow-auto" style="max-height:320px"><table class="w-full text-xs" id="tbl-month"></table></div></div>
+    <div class="card">
+      <h2 class="font-bold text-slate-700 text-sm mb-2">🕘 ประวัติการเปลี่ยนแปลงล่าสุด</h2>
+      <div class="overflow-auto" style="max-height:320px"><table class="w-full text-xs" id="tbl-log"></table></div></div>
+  </div>
+
+  <p class="text-center text-xs text-slate-400 py-3">ระบบจัดการกล้อง NCAPs — ห้วยขาแข้ง</p>
+</main>
+
+<div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-2.5 rounded-lg shadow-xl z-50 text-sm"></div>
+
+<script>
+const API = '';   // ใส่เฉพาะตอนเปิดไฟล์นอก Apps Script
+const INGAS = (typeof google !== 'undefined' && google.script && google.script.run);
+function RUN(fn, arg){
+  return new Promise((ok, err) =>
+    google.script.run.withSuccessHandler(ok).withFailureHandler(err)[fn](arg));
+}
+async function apiGet(action){
+  if (INGAS) return JSON.parse(await RUN('apiGet', action));
+  return fetch(API + '?action=' + action + '&t=' + Date.now()).then(r=>r.json());
+}
+
+const MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const CH = {};
+let DB = {online:[],standby:[],removed:[],all:[],sims:[]}, LOG = [];
+Chart.defaults.font.family = 'Sarabun';
+Chart.defaults.font.size = 11;
+
+async function load(){
+  try{
+    toast('กำลังโหลดข้อมูล…');
+    const [a, b] = await Promise.all([
+      apiGet('list'),
+      apiGet('log').catch(()=>({log:[]}))
+    ]);
+    if(!a.ok) throw new Error(a.error || 'โหลดข้อมูลไม่สำเร็จ');
+    DB = a; LOG = b.log || [];
+    document.getElementById('stamp').textContent = 'อัปเดต ' + a.generated_at;
+    buildYearOptions(); renderAll();
+    toast('✅ โหลดข้อมูลสำเร็จ');
+  }catch(e){ toast('❌ ' + e.message, 5000); }
+}
+
+function buildYearOptions(){
+  const yrs = new Set([new Date().getFullYear()]);
+  DB.all.forEach(c=>{ [c.install_date, c.removed_date].forEach(d=>{ const t=pd(d); if(t) yrs.add(t.getFullYear()); }); });
+  const sel = document.getElementById('yr'), cur = sel.value;
+  sel.innerHTML = [...yrs].sort((a,b)=>b-a)
+    .map(y=>`<option value="${y}">ปี ${y} (พ.ศ. ${y+543})</option>`).join('')
+    + '<option value="ALL">ทุกปี</option>';
+  if(cur) sel.value = cur;
+}
+
+function renderAll(){
+  const y = document.getElementById('yr').value;
+  const lbl = y === 'ALL' ? '(ทุกปี)' : `(ปี ${y})`;
+  document.getElementById('lbl-yr').textContent = lbl;
+  document.getElementById('lbl-yr2').textContent = lbl;
+  kpi(y); chartMonthly(y); chartSignal(); chartCumulative();
+  chartReason(); chartCarrier(); chartSimStatus();
+  tableMonthly(y); tableLog(); simUrgent();
+}
+
+function kpi(y){
+  const tot = DB.all.length;
+  set('k-online', DB.online.length); set('k-standby', DB.standby.length);
+  set('k-removed', DB.removed.length); set('k-total', tot);
+  set('k-online-pct', tot ? Math.round(DB.online.length/tot*100) + '% ของทั้งหมด' : '–');
+  const rmY = y==='ALL' ? DB.removed.length
+    : DB.removed.filter(c=>{const t=pd(c.removed_date); return t && t.getFullYear()==y;}).length;
+  set('k-removed-yr', `ถอนในช่วงที่เลือก ${rmY} ตัว`);
+  let warn=0, exp=0;
+  DB.sims.forEach(s=>{ const d=dl(s.promo_end); if(d===null) return; if(d<0) exp++; else if(d<=30) warn++; });
+  set('k-simwarn', warn); set('k-simexp', exp);
+}
+
+function chartMonthly(y){
+  const inst = Array(12).fill(0), rem = Array(12).fill(0);
+  DB.all.forEach(c=>{
+    const i = pd(c.install_date), r = pd(c.removed_date);
+    if(i && (y==='ALL' || i.getFullYear()==y)) inst[i.getMonth()]++;
+    if(r && (y==='ALL' || r.getFullYear()==y)) rem[r.getMonth()]++;
+  });
+  draw('ch1', { type:'bar',
+    data:{ labels:MONTHS, datasets:[
+      {label:'ติดตั้งใหม่', data:inst, backgroundColor:'#059669', borderRadius:5},
+      {label:'ถอนออก', data:rem, backgroundColor:'#dc2626', borderRadius:5},
+      {label:'คงเหลือสุทธิ', type:'line', data:inst.map((v,i)=>v-rem[i]),
+       borderColor:'#0284c7', backgroundColor:'#0284c7', tension:.35, borderWidth:2.5, pointRadius:4}]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}},
+      scales:{y:{beginAtZero:true, ticks:{precision:0}, grid:{color:'#f1f5f9'}}, x:{grid:{display:false}}} }});
+}
+
+function chartSignal(){
+  const m = {P5:0, P3:0, P1:0, 'ไม่ระบุ':0};
+  DB.online.forEach(c=> m[c.signal] !== undefined ? m[c.signal]++ : m['ไม่ระบุ']++);
+  draw('ch2', { type:'doughnut',
+    data:{ labels:['P5 (แรง)','P3 (ปานกลาง)','P1 (อ่อน)','ไม่ระบุ'],
+      datasets:[{ data:[m.P5,m.P3,m.P1,m['ไม่ระบุ']],
+      backgroundColor:['#16a34a','#f59e0b','#dc2626','#cbd5e1'], borderWidth:3, borderColor:'#fff' }]},
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'58%',
+      plugins:{ legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>{
+        const t=c.dataset.data.reduce((a,b)=>a+b,0);
+        return `${c.label}: ${c.raw} ตัว (${t?Math.round(c.raw/t*100):0}%)`;}}}} }});
+}
+
+function chartCumulative(){
+  const labels=[], data=[], now=new Date();
+  for(let k=11;k>=0;k--){
+    const d = new Date(now.getFullYear(), now.getMonth()-k+1, 0, 23, 59, 59);
+    labels.push(MONTHS[d.getMonth()] + ' ' + String(d.getFullYear()+543).slice(-2));
+    let n = 0;
+    DB.all.forEach(c=>{ const i=pd(c.install_date), r=pd(c.removed_date);
+      if(i && i <= d && (!r || r > d)) n++; });
+    data.push(n);
+  }
+  draw('ch3', { type:'line',
+    data:{ labels, datasets:[{ label:'กล้องออนไลน์ ณ สิ้นเดือน', data,
+      borderColor:'#059669', backgroundColor:'rgba(5,150,105,.14)',
+      fill:true, tension:.35, borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#059669' }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}},
+      scales:{y:{beginAtZero:true, ticks:{precision:0}, grid:{color:'#f1f5f9'}}, x:{grid:{display:false}}} }});
+}
+
+function chartReason(){
+  const m = {};
+  DB.removed.forEach(c=>{
+    const r = String(c.remark||'ไม่ระบุเหตุผล').split('—')[0].trim() || 'ไม่ระบุเหตุผล';
+    m[r] = (m[r]||0) + 1; });
+  const e = Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,7);
+  draw('ch4', { type:'bar',
+    data:{ labels: e.length ? e.map(x=>x[0]) : ['ยังไม่มีข้อมูล'],
+      datasets:[{ data: e.length ? e.map(x=>x[1]) : [0],
+      backgroundColor:['#dc2626','#ea580c','#d97706','#ca8a04','#65a30d','#0891b2','#7c3aed'], borderRadius:5 }]},
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true, ticks:{precision:0}}, y:{grid:{display:false}}} }});
+}
+
+function chartCarrier(){
+  const m = {};
+  DB.sims.forEach(s=>{ const c = s.carrier||'ไม่ระบุ'; m[c]=(m[c]||0)+1; });
+  const e = Object.entries(m);
+  const col = {AIS:'#00a651', TRUE:'#e30613', DTAC:'#0072bc', NT:'#f7941e'};
+  draw('ch5', { type:'bar',
+    data:{ labels:e.map(x=>x[0]), datasets:[{ data:e.map(x=>x[1]),
+      backgroundColor:e.map(x=>col[x[0]]||'#94a3b8'), borderRadius:5 }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true, ticks:{precision:0}}, x:{grid:{display:false}}} }});
+}
+
+function chartSimStatus(){
+  let ok=0, w=0, e=0, n=0;
+  DB.sims.forEach(s=>{ const d=dl(s.promo_end);
+    if(d===null) n++; else if(d<0) e++; else if(d<=30) w++; else ok++; });
+  draw('ch6', { type:'doughnut',
+    data:{ labels:['ปกติ (>30 วัน)','ใกล้หมด (≤30 วัน)','หมดแล้ว','ไม่ระบุวันหมด'],
+      datasets:[{ data:[ok,w,e,n], backgroundColor:['#059669','#f59e0b','#dc2626','#cbd5e1'],
+      borderWidth:3, borderColor:'#fff' }]},
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'58%',
+      plugins:{legend:{position:'bottom'}} }});
+}
+
+function simUrgent(){
+  const rows = DB.sims.map(s=>({...s, d: dl(s.promo_end)}))
+    .filter(s=>s.d !== null && s.d <= 60).sort((a,b)=>a.d-b.d);
+  document.getElementById('simurgent').innerHTML = rows.length ? rows.map(s=>{
+    const c = s.d<0 ? 'bg-red-50 border-red-300 text-red-700'
+      : s.d<=30 ? 'bg-amber-50 border-amber-300 text-amber-700'
+      : 'bg-slate-50 border-slate-200 text-slate-600';
+    return `<div class="border rounded-lg p-2 mb-1.5 ${c}">
+      <div class="flex justify-between"><b>${esc(s.sim_number)}</b><span>${esc(s.carrier)}</span></div>
+      <div class="flex justify-between mt-0.5"><span>กล้อง ${esc(s.camera_id||'—')}</span>
+      <b>${s.d<0 ? 'หมดแล้ว '+Math.abs(s.d)+' วัน' : 'เหลือ '+s.d+' วัน'}</b></div>
+      <div class="text-[10px] opacity-70">หมด ${esc(s.promo_end)}</div></div>`;
+  }).join('') : '<div class="text-center text-slate-400 py-16">✅ ไม่มี SIM ที่ต้องต่ออายุ<br>ภายใน 60 วัน</div>';
+}
+
+function tableMonthly(y){
+  const inst=Array(12).fill(0), rem=Array(12).fill(0);
+  DB.all.forEach(c=>{
+    const i=pd(c.install_date), r=pd(c.removed_date);
+    if(i && (y==='ALL'||i.getFullYear()==y)) inst[i.getMonth()]++;
+    if(r && (y==='ALL'||r.getFullYear()==y)) rem[r.getMonth()]++;
+  });
+  let run=0;
+  const body = MONTHS.map((m,i)=>{
+    run += inst[i]-rem[i];
+    const rate = inst[i] ? Math.round(rem[i]/inst[i]*100) : 0;
+    return `<tr class="border-b hover:bg-slate-50 ${inst[i]||rem[i]?'':'text-slate-300'}">
+      <td class="p-1.5 font-medium">${m}</td>
+      <td class="text-center text-emerald-600 font-semibold">${inst[i]||'–'}</td>
+      <td class="text-center text-red-600 font-semibold">${rem[i]||'–'}</td>
+      <td class="text-center ${run>=0?'text-sky-600':'text-orange-600'} font-bold">${run}</td>
+      <td class="text-center text-slate-500">${inst[i]?rate+'%':'–'}</td></tr>`;
+  }).join('');
+  document.getElementById('tbl-month').innerHTML =
+    `<thead class="bg-slate-100 sticky top-0"><tr>
+      <th class="p-2 text-left">เดือน</th><th>ติดตั้ง</th><th>ถอน</th><th>สะสม</th><th>อัตราถอน</th>
+    </tr></thead><tbody>${body}</tbody>
+    <tfoot class="bg-emerald-50 font-bold"><tr><td class="p-2">รวม</td>
+      <td class="text-center text-emerald-700">${inst.reduce((a,b)=>a+b,0)}</td>
+      <td class="text-center text-red-700">${rem.reduce((a,b)=>a+b,0)}</td>
+      <td class="text-center text-sky-700">${run}</td><td class="text-center">–</td></tr></tfoot>`;
+}
+
+function tableLog(){
+  const ico = {CREATE:'➕ เพิ่ม', UPDATE:'✏️ แก้ไข', UNINSTALL:'⛔ ถอน', RESTORE:'↩ เข้าคลัง', DELETE:'🗑 ลบ'};
+  const rows = LOG.slice(0, 60);
+  document.getElementById('tbl-log').innerHTML = rows.length
+    ? `<thead class="bg-slate-100 sticky top-0"><tr><th class="p-2 text-left">เวลา</th>
+        <th class="text-left">กล้อง</th><th class="text-left">กิจกรรม</th>
+        <th class="text-left">หมายเหตุ</th></tr></thead><tbody>`
+      + rows.map(l=>`<tr class="border-b hover:bg-slate-50">
+          <td class="p-1.5 text-slate-500 whitespace-nowrap">${esc(l.timestamp).slice(5,16)}</td>
+          <td class="font-medium">${esc(l.camera_id)}</td>
+          <td class="whitespace-nowrap">${ico[l.action]||esc(l.action)}</td>
+          <td class="text-slate-500 truncate max-w-[140px]">${esc(l.note||'–')}</td></tr>`).join('')
+      + '</tbody>'
+    : '<tbody><tr><td class="text-center text-slate-400 py-16">— ยังไม่มีประวัติ —</td></tr></tbody>';
+}
+
+function exportTable(){
+  const t = document.getElementById('tbl-month');
+  const csv = '\uFEFF' + [...t.querySelectorAll('tr')]
+    .map(r=>[...r.querySelectorAll('th,td')].map(c=>`"${c.textContent.trim()}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download = `NCAPs_summary_${document.getElementById('yr').value}.csv`;
+  a.click();
+}
+
+function draw(id, cfg){ if(CH[id]) CH[id].destroy(); CH[id] = new Chart(document.getElementById(id), cfg); }
+const set = (id,v)=> document.getElementById(id).textContent = v;
+const esc = s => String(s??'').replace(/[<>&"]/g, m=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[m]));
+function pd(v){
+  if(!v) return null; const s=String(v).trim(); if(!s) return null;
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m){ let y=+m[1]; if(y>2400) y-=543; return new Date(y,+m[2]-1,+m[3]); }
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m){ let y=+m[3]; if(y>2400) y-=543; return new Date(y,+m[2]-1,+m[1]); }
+  const d = new Date(s); return isNaN(d)?null:d;
+}
+function dl(v){ const t=pd(v); if(!t) return null;
+  const n=new Date(); n.setHours(0,0,0,0); return Math.ceil((t-n)/86400000); }
+let tT; function toast(m, ms){ const t=document.getElementById('toast');
+  t.textContent=m; t.classList.remove('hidden'); clearTimeout(tT);
+  tT=setTimeout(()=>t.classList.add('hidden'), ms||2000); }
+
+load();
+</script>
+</body>
+</html>
