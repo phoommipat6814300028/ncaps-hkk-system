@@ -48,13 +48,15 @@
       <div class="lg:col-span-3 bg-white rounded-xl shadow overflow-hidden" style="height:70vh"><div id="map"></div></div>
       <div class="bg-white rounded-xl shadow p-3 flex flex-col" style="height:70vh">
         <input id="q" oninput="renderSide()" placeholder="🔍 ค้นหากล้อง…" class="w-full border rounded-lg px-3 py-2 text-sm mb-2">
-       <div class="flex gap-1 mb-2 text-xs">
+        
+        <!-- ส่วนปุ่มที่มี KML -->
+        <div class="flex gap-1 mb-2 text-xs">
           <button onclick="setF('ONLINE')"  class="fbtn flex-1 py-1.5 rounded-lg bg-emerald-600 text-white">ออนไลน์</button>
-          <button onclick="setF('STANDBY')" class="fbtn flex-1 py-1.5 rounded-lg bg-slate-200">คลัง</button>
-          <button onclick="setF('REMOVED')" class="fbtn flex-1 py-1.5 rounded-lg bg-slate-200">ถอนแล้ว</button>
-          <!-- ปุ่มเปิด/ปิด KML -->
+          <button onclick="setF('STANDBY')" class="fbtn flex-1 py-1.5 rounded-lg bg-slate-200 text-slate-800">คลัง</button>
+          <button onclick="setF('REMOVED')" class="fbtn flex-1 py-1.5 rounded-lg bg-slate-200 text-slate-800">ถอนแล้ว</button>
           <button onclick="toggleKml()" id="btn-kml" class="flex-1 py-1.5 rounded-lg bg-sky-600 text-white">🗺️ ขอบเขต</button>
         </div>
+
         <div id="side" class="overflow-auto flex-1 text-sm"></div>
       </div>
     </div>
@@ -181,6 +183,7 @@ async function post(body){
 
 let DB = {online:[],standby:[],removed:[],all:[],sims:[]};
 let MAP = null, MARKERS = [], FILTER = 'ONLINE', EDIT = null, UNTARGET = null;
+let kmlLayer = null; // ตัวแปรสำหรับ KML
 const HKK = {lat:15.4167, lng:99.3167};
 
 /* ═══ โหลดข้อมูล ═══ */
@@ -195,42 +198,24 @@ async function load(){
 }
 
 /* ═══ แผนที่ ═══ */
-let MAP = null, MARKERS = [], FILTER = 'ONLINE', EDIT = null, UNTARGET = null;
-let kmlLayer = null; // เพิ่มตัวแปรสำหรับเก็บ KML
-
-/* ═══ แผนที่ ═══ */
 function initMap(){
   MAP = new google.maps.Map(document.getElementById('map'), {
     center: HKK, zoom: 10, mapTypeId: 'terrain',
     mapTypeControl: true, streetViewControl: false
   });
   
-  // ใส่ลิงก์ KMZ ที่แปลงเป็น raw.githubusercontent แล้ว
-  const kmlUrl = 'https://raw.githubusercontent.com/phoommipat6814300028/ncaps-hkk-system/main/HKK_TOPO.kmz';
+  // ลิงก์ KMZ เส้นแนวเขตห้วยขาแข้ง
+  const kmlUrl = 'https://github.com/phoommipat6814300028/ncaps-hkk-system/raw/refs/heads/main/%E0%B9%81%E0%B8%99%E0%B8%A7%E0%B9%80%E0%B8%82%E0%B8%95%E0%B8%AF%E0%B8%AB%E0%B9%89%E0%B8%A7%E0%B8%A2%E0%B8%82%E0%B8%B2%E0%B9%81%E0%B8%82%E0%B9%89%E0%B8%87.kmz';
   
   if (kmlUrl !== '') {
     kmlLayer = new google.maps.KmlLayer({
       url: kmlUrl,
       map: MAP,
-      preserveViewport: true // ไม่บังคับซูมไปที่ KML
+      preserveViewport: true // ไม่บังคับซูมไปที่ KML ทันทีที่โหลด
     });
   }
 
   drawMarkers();
-}
-
-// ฟังก์ชันสำหรับปุ่มเปิด/ปิด ขอบเขตพื้นที่
-function toggleKml() {
-  if (!kmlLayer) return toast('ยังไม่ได้โหลดขอบเขตพื้นที่');
-  
-  const btn = document.getElementById('btn-kml');
-  if (kmlLayer.getMap()) {
-    kmlLayer.setMap(null); // ซ่อน
-    btn.className = 'flex-1 py-1.5 rounded-lg bg-slate-200 text-slate-800';
-  } else {
-    kmlLayer.setMap(MAP); // แสดง
-    btn.className = 'flex-1 py-1.5 rounded-lg bg-sky-600 text-white';
-  }
 }
 window.initMap = initMap;
 
@@ -244,6 +229,19 @@ function loadMaps(){
   const s = document.createElement('script');
   s.src = 'https://maps.googleapis.com/maps/api/js?key=' + MAPS_KEY + '&callback=initMap&language=th';
   s.async = true; document.head.appendChild(s);
+}
+
+function toggleKml() {
+  if (!kmlLayer) return toast('ยังไม่ได้โหลดขอบเขตพื้นที่');
+  const btn = document.getElementById('btn-kml');
+  
+  if (kmlLayer.getMap()) {
+    kmlLayer.setMap(null);
+    btn.className = 'flex-1 py-1.5 rounded-lg bg-slate-200 text-slate-800';
+  } else {
+    kmlLayer.setMap(MAP);
+    btn.className = 'flex-1 py-1.5 rounded-lg bg-sky-600 text-white';
+  }
 }
 
 const SIGCOL = {P5:'#16a34a', P3:'#f59e0b', P1:'#dc2626'};
@@ -278,7 +276,7 @@ function setF(f){
   FILTER = f;
   document.querySelectorAll('.fbtn').forEach((b,i)=>{
     const on = ['ONLINE','STANDBY','REMOVED'][i] === f;
-    b.className = 'fbtn flex-1 py-1.5 rounded-lg ' + (on?'bg-emerald-600 text-white':'bg-slate-200');
+    b.className = 'fbtn flex-1 py-1.5 rounded-lg ' + (on?'bg-emerald-600 text-white':'bg-slate-200 text-slate-800');
   });
   renderSide(); drawMarkers();
 }
