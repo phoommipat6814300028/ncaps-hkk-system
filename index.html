@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบจัดการกล้อง NCAPs</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Sarabun',sans-serif;margin:0}
+  #map{width:100%;height:100%;background:#e2e8f0}
+  .tabbtn.on{background:#059669;color:#fff}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:4px}
+</style>
+</head>
+<body class="bg-slate-100">
+
+<!-- ══ HEADER ══ -->
+<header class="bg-gradient-to-r from-emerald-800 to-emerald-600 text-white px-4 py-3 shadow-lg">
+  <div class="max-w-[1600px] mx-auto flex items-center gap-3 flex-wrap">
+    <div class="text-2xl">🎥</div>
+    <div class="flex-1 min-w-[180px]">
+      <h1 class="font-bold text-lg leading-tight">ระบบจัดการกล้อง NCAPs</h1>
+      <p class="text-emerald-100 text-xs">ห้วยขาแข้ง · <span id="stamp">กำลังโหลด…</span></p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <button onclick="openCam()" class="bg-white text-emerald-700 font-semibold px-3 py-2 rounded-lg text-sm">➕ เพิ่มกล้อง</button>
+      <a href="?page=dashboard" target="_top" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm">📊 Dashboard</a>
+      <button onclick="load()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm">🔄</button>
+    </div>
+  </div>
+</header>
+
+<!-- ══ TABS ══ -->
+<div class="bg-white border-b px-4 flex gap-1 sticky top-0 z-30">
+  <button class="tabbtn on px-4 py-2.5 text-sm font-semibold rounded-t-lg" data-t="map"  onclick="tab('map')">🗺️ แผนที่</button>
+  <button class="tabbtn px-4 py-2.5 text-sm font-semibold rounded-t-lg"    data-t="list" onclick="tab('list')">📋 รายการกล้อง</button>
+  <button class="tabbtn px-4 py-2.5 text-sm font-semibold rounded-t-lg"    data-t="sim"  onclick="tab('sim')">📱 SIM</button>
+</div>
+
+<main class="max-w-[1600px] mx-auto p-3">
+
+  <!-- ══ TAB: MAP ══ -->
+  <section id="tab-map">
+    <div class="grid lg:grid-cols-4 gap-3">
+      <div class="lg:col-span-3 bg-white rounded-xl shadow overflow-hidden" style="height:70vh"><div id="map"></div></div>
+      <div class="bg-white rounded-xl shadow p-3 flex flex-col" style="height:70vh">
+        <input id="q" oninput="renderSide()" placeholder="🔍 ค้นหากล้อง…" class="w-full border rounded-lg px-3 py-2 text-sm mb-2">
+        <div class="flex gap-1 mb-2 text-xs">
+          <button onclick="setF('ONLINE')"  class="fbtn flex-1 py-1.5 rounded-lg bg-emerald-600 text-white">ออนไลน์</button>
+          <button onclick="setF('STANDBY')" class="fbtn flex-1 py-1.5 rounded-lg bg-slate-200">คลัง</button>
+          <button onclick="setF('REMOVED')" class="fbtn flex-1 py-1.5 rounded-lg bg-slate-200">ถอนแล้ว</button>
+        </div>
+        <div id="side" class="overflow-auto flex-1 text-sm"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ TAB: LIST ══ -->
+  <section id="tab-list" class="hidden bg-white rounded-xl shadow p-3">
+    <div class="overflow-auto" style="max-height:75vh">
+      <table class="w-full text-xs" id="tbl-cam"></table>
+    </div>
+  </section>
+
+  <!-- ══ TAB: SIM ══ -->
+  <section id="tab-sim" class="hidden bg-white rounded-xl shadow p-3">
+    <button onclick="openSim()" class="mb-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm">➕ เพิ่ม SIM</button>
+    <div class="overflow-auto" style="max-height:75vh"><table class="w-full text-xs" id="tbl-sim"></table></div>
+  </section>
+</main>
+
+<!-- ══ MODAL: กล้อง ══ -->
+<div id="m-cam" class="hidden fixed inset-0 bg-black/50 z-50 overflow-auto p-4">
+  <div class="bg-white rounded-xl max-w-2xl mx-auto mt-6 p-5">
+    <h3 class="font-bold text-lg mb-3" id="m-cam-t">เพิ่มกล้อง</h3>
+    <div class="grid md:grid-cols-2 gap-3 text-sm">
+      <label>รหัสกล้อง *<input id="f-id" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label>ชื่อกล้อง<input id="f-name" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label class="md:col-span-2">หน่วย/จุดติดตั้ง<input id="f-station" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label>UTM Zone<input id="f-zone" value="47" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label>สัญญาณ
+        <select id="f-signal" class="w-full border rounded-lg px-3 py-2 mt-1">
+          <option value="">— ไม่ระบุ —</option><option>P5</option><option>P3</option><option>P1</option>
+        </select></label>
+      <label>UTM E (Easting)<input id="f-e" type="number" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label>UTM N (Northing)<input id="f-n" type="number" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label>เบอร์ SIM
+        <select id="f-sim" class="w-full border rounded-lg px-3 py-2 mt-1"></select></label>
+      <label>วันที่ติดตั้ง<input id="f-inst" type="date" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label>สถานะ
+        <select id="f-status" class="w-full border rounded-lg px-3 py-2 mt-1">
+          <option value="ONLINE">ออนไลน์ (ติดตั้งแล้ว)</option>
+          <option value="STANDBY">สแตนด์บาย (ในคลัง)</option>
+        </select></label>
+      <label>ผู้บันทึก<input id="f-by" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label class="md:col-span-2">หมายเหตุ<input id="f-remark" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+    </div>
+    <div class="flex gap-2 mt-4">
+      <button onclick="saveCam()" class="flex-1 bg-emerald-600 text-white py-2.5 rounded-lg font-semibold">💾 บันทึก</button>
+      <button onclick="close_('m-cam')" class="px-5 bg-slate-200 rounded-lg">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: ถอนกล้อง ══ -->
+<div id="m-un" class="hidden fixed inset-0 bg-black/50 z-50 p-4">
+  <div class="bg-white rounded-xl max-w-md mx-auto mt-20 p-5">
+    <h3 class="font-bold text-lg mb-1">⛔ ถอนกล้อง</h3>
+    <p class="text-sm text-slate-500 mb-3" id="un-name"></p>
+    <label class="text-sm">เหตุผล
+      <select id="un-reason" class="w-full border rounded-lg px-3 py-2 mt-1">
+        <option>กล้องเสีย/ชำรุด</option><option>แบตเตอรี่เสื่อม</option>
+        <option>สัญญาณไม่เสถียร</option><option>ย้ายจุดติดตั้ง</option>
+        <option>ถูกขโมย/สูญหาย</option><option>สัตว์ป่าทำลาย</option>
+        <option>ครบกำหนดเก็บข้อมูล</option><option>อื่น ๆ</option>
+      </select></label>
+    <label class="text-sm block mt-2">รายละเอียดเพิ่มเติม
+      <input id="un-note" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+    <label class="text-sm block mt-2">วันที่ถอน
+      <input id="un-date" type="date" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+    <div class="flex gap-2 mt-4">
+      <button onclick="doUninstall()" class="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-semibold">ยืนยันถอน</button>
+      <button onclick="close_('m-un')" class="px-5 bg-slate-200 rounded-lg">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: SIM ══ -->
+<div id="m-sim" class="hidden fixed inset-0 bg-black/50 z-50 p-4">
+  <div class="bg-white rounded-xl max-w-lg mx-auto mt-16 p-5">
+    <h3 class="font-bold text-lg mb-3">📱 ข้อมูล SIM</h3>
+    <div class="grid md:grid-cols-2 gap-3 text-sm">
+      <label>เบอร์ SIM *<input id="s-num" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label>ค่าย
+        <select id="s-car" class="w-full border rounded-lg px-3 py-2 mt-1">
+          <option>AIS</option><option>TRUE</option><option>DTAC</option><option>NT</option>
+        </select></label>
+      <label class="md:col-span-2">แพ็กเกจ<input id="s-promo" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label>เริ่มโปรฯ<input id="s-st" type="date" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label>หมดโปรฯ<input id="s-en" type="date" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+      <label class="md:col-span-2">หมายเหตุ<input id="s-note" class="w-full border rounded-lg px-3 py-2 mt-1"></label>
+    </div>
+    <div class="flex gap-2 mt-4">
+      <button onclick="saveSim_()" class="flex-1 bg-emerald-600 text-white py-2.5 rounded-lg font-semibold">💾 บันทึก</button>
+      <button onclick="close_('m-sim')" class="px-5 bg-slate-200 rounded-lg">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-2.5 rounded-lg shadow-xl z-[60] text-sm"></div>
+
+<script>
+/* ╔═══════════════════════════════════════════════╗
+   ║  ⚙️  ตั้งค่า — ใส่ Google Maps API Key ตรงนี้    ║
+   ╚═══════════════════════════════════════════════╝ */
+const MAPS_KEY = 'AIzaSyCn8PVXSWj38Th0cew4dOp0ia6_YmGLQWo';
+const API = '';   // ใส่เฉพาะตอนเปิดไฟล์นอก Apps Script
+/* ═══════════════════════════════════════════════ */
+
+const INGAS = (typeof google !== 'undefined' && google.script && google.script.run);
+function RUN(fn, arg){
+  return new Promise((ok, err) =>
+    google.script.run.withSuccessHandler(ok).withFailureHandler(err)[fn](arg));
+}
+async function apiGet(action){
+  if (INGAS) return JSON.parse(await RUN('apiGet', action));
+  return fetch(API + '?action=' + action + '&t=' + Date.now()).then(r=>r.json());
+}
+async function post(body){
+  try{
+    if (INGAS) return JSON.parse(await RUN('apiPost', JSON.stringify(body)));
+    return fetch(API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(body)}).then(r=>r.json());
+  }catch(e){ return {ok:false, error: e.message || String(e)}; }
+}
+
+let DB = {online:[],standby:[],removed:[],all:[],sims:[]};
+let MAP = null, MARKERS = [], FILTER = 'ONLINE', EDIT = null, UNTARGET = null;
+const HKK = {lat:15.4167, lng:99.3167};
+
+/* ═══ โหลดข้อมูล ═══ */
+async function load(){
+  toast('กำลังโหลดข้อมูล…');
+  const r = await apiGet('list');
+  if(!r.ok){ toast('❌ ' + (r.error||'โหลดไม่สำเร็จ'), 5000); return; }
+  DB = r;
+  document.getElementById('stamp').textContent = 'อัปเดต ' + r.generated_at;
+  renderSide(); renderTable(); renderSim(); fillSimOptions(); drawMarkers();
+  toast('✅ โหลดข้อมูลสำเร็จ');
+}
+
+/* ═══ แผนที่ ═══ */
+function initMap(){
+  MAP = new google.maps.Map(document.getElementById('map'), {
+    center: HKK, zoom: 10, mapTypeId: 'terrain',
+    mapTypeControl: true, streetViewControl: false
+  });
+  drawMarkers();
+}
+window.initMap = initMap;
+
+function loadMaps(){
+  if(!MAPS_KEY || MAPS_KEY.indexOf('ใส่_') === 0){
+    document.getElementById('map').innerHTML =
+      '<div class="h-full flex items-center justify-center text-slate-500 text-sm text-center p-6">' +
+      '🔑 ยังไม่ได้ใส่ Google Maps API Key<br><span class="text-xs">แก้ที่ตัวแปร MAPS_KEY ในไฟล์ index.html</span></div>';
+    return;
+  }
+  const s = document.createElement('script');
+  s.src = 'https://maps.googleapis.com/maps/api/js?key=' + MAPS_KEY + '&callback=initMap&language=th';
+  s.async = true; document.head.appendChild(s);
+}
+
+const SIGCOL = {P5:'#16a34a', P3:'#f59e0b', P1:'#dc2626'};
+
+function drawMarkers(){
+  if(!MAP) return;
+  MARKERS.forEach(m=>m.setMap(null)); MARKERS = [];
+  list().forEach(c=>{
+    if(!c.lat || !c.lng) return;
+    const mk = new google.maps.Marker({
+      position:{lat:+c.lat, lng:+c.lng}, map:MAP, title:c.camera_id,
+      icon:{ path:google.maps.SymbolPath.CIRCLE, scale:8,
+        fillColor: FILTER==='REMOVED' ? '#94a3b8' : (SIGCOL[c.signal]||'#64748b'),
+        fillOpacity:.95, strokeColor:'#fff', strokeWeight:2 }
+    });
+    const iw = new google.maps.InfoWindow({content:
+      `<div style="font-family:Sarabun;font-size:13px;min-width:180px">
+        <b>${esc(c.camera_id)}</b> — ${esc(c.name||'')}<br>
+        📍 ${esc(c.station||'—')}<br>
+        📶 ${esc(c.signal||'—')} · 📱 ${esc(c.sim_number||'—')}<br>
+        🗓 ติดตั้ง ${esc(c.install_date||'—')}
+      </div>`});
+    mk.addListener('click', ()=>iw.open(MAP, mk));
+    MARKERS.push(mk);
+  });
+}
+
+/* ═══ Sidebar ═══ */
+const list = ()=> (FILTER==='ONLINE'?DB.online:FILTER==='STANDBY'?DB.standby:DB.removed);
+
+function setF(f){
+  FILTER = f;
+  document.querySelectorAll('.fbtn').forEach((b,i)=>{
+    const on = ['ONLINE','STANDBY','REMOVED'][i] === f;
+    b.className = 'fbtn flex-1 py-1.5 rounded-lg ' + (on?'bg-emerald-600 text-white':'bg-slate-200');
+  });
+  renderSide(); drawMarkers();
+}
+
+function renderSide(){
+  const q = (document.getElementById('q').value||'').toLowerCase();
+  const rows = list().filter(c=>!q || JSON.stringify(c).toLowerCase().includes(q));
+  document.getElementById('side').innerHTML = rows.length ? rows.map(c=>`
+    <div class="border rounded-lg p-2 mb-1.5 hover:bg-slate-50">
+      <div class="flex justify-between items-start">
+        <div><b>${esc(c.camera_id)}</b> <span class="text-xs text-slate-500">${esc(c.name||'')}</span>
+          <div class="text-xs text-slate-500">📍 ${esc(c.station||'—')}</div></div>
+        <span class="text-xs px-1.5 py-0.5 rounded" style="background:${SIGCOL[c.signal]||'#cbd5e1'};color:#fff">${esc(c.signal||'—')}</span>
+      </div>
+      <div class="flex gap-1 mt-1.5 text-xs">
+        <button onclick="focusCam('${esc(c.camera_id)}')" class="px-2 py-1 bg-sky-100 text-sky-700 rounded">🎯</button>
+        <button onclick="openCam('${esc(c.camera_id)}')" class="px-2 py-1 bg-slate-100 rounded">✏️</button>
+        ${c.status==='REMOVED'
+          ? `<button onclick="doRestore('${esc(c.camera_id)}')" class="px-2 py-1 bg-emerald-100 text-emerald-700 rounded">↩ เข้าคลัง</button>`
+          : `<button onclick="openUn('${esc(c.camera_id)}')" class="px-2 py-1 bg-red-100 text-red-700 rounded">⛔ ถอน</button>`}
+      </div>
+    </div>`).join('') : '<div class="text-center text-slate-400 py-12">— ไม่พบข้อมูล —</div>';
+}
+
+function focusCam(id){
+  const c = DB.all.find(x=>x.camera_id===id);
+  if(!c || !c.lat || !MAP) return toast('กล้องนี้ยังไม่มีพิกัด');
+  MAP.panTo({lat:+c.lat, lng:+c.lng}); MAP.setZoom(15);
+}
+
+/* ═══ ตารางกล้อง ═══ */
+function renderTable(){
+  const badge = s => s==='ONLINE'?'<span class="text-emerald-600">● ออนไลน์</span>'
+    : s==='STANDBY'?'<span class="text-sky-600">● คลัง</span>':'<span class="text-slate-400">● ถอนแล้ว</span>';
+  document.getElementById('tbl-cam').innerHTML =
+    `<thead class="bg-slate-100 sticky top-0"><tr>
+      <th class="p-2 text-left">รหัส</th><th class="text-left">ชื่อ</th><th class="text-left">หน่วย</th>
+      <th>สัญญาณ</th><th class="text-left">SIM</th><th>ติดตั้ง</th><th>ถอน</th><th>สถานะ</th><th></th>
+    </tr></thead><tbody>` + DB.all.map(c=>`
+      <tr class="border-b hover:bg-slate-50">
+        <td class="p-1.5 font-medium">${esc(c.camera_id)}</td><td>${esc(c.name||'—')}</td>
+        <td>${esc(c.station||'—')}</td><td class="text-center">${esc(c.signal||'—')}</td>
+        <td>${esc(c.sim_number||'—')}</td><td class="text-center">${esc(c.install_date||'—')}</td>
+        <td class="text-center">${esc(c.removed_date||'—')}</td>
+        <td class="text-center">${badge(c.status)}</td>
+        <td class="text-center"><button onclick="openCam('${esc(c.camera_id)}')" class="text-emerald-700">✏️</button></td>
+      </tr>`).join('') + '</tbody>';
+}
+
+/* ═══ ตาราง SIM ═══ */
+function renderSim(){
+  document.getElementById('tbl-sim').innerHTML =
+    `<thead class="bg-slate-100 sticky top-0"><tr>
+      <th class="p-2 text-left">เบอร์</th><th>ค่าย</th><th class="text-left">แพ็กเกจ</th>
+      <th>หมดโปรฯ</th><th>เหลือ</th><th>สถานะ</th><th class="text-left">กล้อง</th><th></th>
+    </tr></thead><tbody>` + DB.sims.map(s=>{
+      const d = dl(s.promo_end);
+      const cl = d===null?'text-slate-400':d<0?'text-red-600 font-bold':d<=30?'text-amber-600 font-bold':'text-emerald-600';
+      return `<tr class="border-b hover:bg-slate-50">
+        <td class="p-1.5 font-medium">${esc(s.sim_number)}</td><td class="text-center">${esc(s.carrier)}</td>
+        <td>${esc(s.promo||'—')}</td><td class="text-center">${esc(s.promo_end||'—')}</td>
+        <td class="text-center ${cl}">${d===null?'—':d<0?'หมดแล้ว':d+' วัน'}</td>
+        <td class="text-center">${s.status==='IN_USE'?'ใช้งาน':'สำรอง'}</td>
+        <td>${esc(s.camera_id||'—')}</td>
+        <td class="text-center"><button onclick="openSim('${esc(s.sim_number)}')" class="text-emerald-700">✏️</button></td>
+      </tr>`;}).join('') + '</tbody>';
+}
+
+function fillSimOptions(){
+  document.getElementById('f-sim').innerHTML = '<option value="">— ไม่ระบุ —</option>' +
+    DB.sims.map(s=>`<option value="${esc(s.sim_number)}">${esc(s.sim_number)} (${esc(s.carrier)})</option>`).join('');
+}
+
+/* ═══ ฟอร์มกล้อง ═══ */
+function openCam(id){
+  EDIT = id || null;
+  const c = id ? DB.all.find(x=>x.camera_id===id) : {};
+  document.getElementById('m-cam-t').textContent = id ? '✏️ แก้ไขกล้อง ' + id : '➕ เพิ่มกล้องใหม่';
+  const v = (k,d)=> document.getElementById(k).value = (c && c[d]!==undefined && c[d]!=='') ? c[d] : '';
+  v('f-id','camera_id'); v('f-name','name'); v('f-station','station');
+  v('f-e','utm_e'); v('f-n','utm_n'); v('f-signal','signal');
+  v('f-sim','sim_number'); v('f-inst','install_date'); v('f-remark','remark'); v('f-by','updated_by');
+  document.getElementById('f-zone').value = (c && c.utm_zone) || 47;
+  document.getElementById('f-status').value = (c && c.status) || 'ONLINE';
+  document.getElementById('f-id').readOnly = !!id;
+  open_('m-cam');
+}
+
+async function saveCam(){
+  const d = {
+    camera_id: val('f-id').trim(), name: val('f-name'), station: val('f-station'),
+    utm_zone: val('f-zone'), utm_e: val('f-e'), utm_n: val('f-n'),
+    signal: val('f-signal'), sim_number: val('f-sim'),
+    install_date: val('f-inst'), status: val('f-status'), remark: val('f-remark')
+  };
+  if(!d.camera_id) return toast('⚠️ กรุณาระบุรหัสกล้อง');
+  toast('กำลังบันทึก…');
+  const r = await post({action:'saveCamera', data:d, by: val('f-by')||'ระบบ'});
+  if(!r.ok) return toast('❌ ' + r.error, 5000);
+  close_('m-cam'); toast('✅ บันทึกเรียบร้อย'); load();
+}
+
+/* ═══ ถอน / คืนคลัง ═══ */
+function openUn(id){
+  UNTARGET = id;
+  const c = DB.all.find(x=>x.camera_id===id) || {};
+  document.getElementById('un-name').textContent = id + ' — ' + (c.name||'');
+  document.getElementById('un-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('un-note').value = '';
+  open_('m-un');
+}
+
+async function doUninstall(){
+  toast('กำลังบันทึก…');
+  const r = await post({action:'uninstall', camera_id:UNTARGET,
+    reason: val('un-reason'), note: val('un-note'),
+    removed_date: val('un-date'), by:'ระบบ'});
+  if(!r.ok) return toast('❌ ' + r.error, 5000);
+  close_('m-un'); toast('✅ ถอนกล้องเรียบร้อย'); load();
+}
+
+async function doRestore(id){
+  if(!confirm('นำกล้อง ' + id + ' กลับเข้าคลัง?')) return;
+  const r = await post({action:'restore', camera_id:id, to:'STANDBY', by:'ระบบ'});
+  if(!r.ok) return toast('❌ ' + r.error, 5000);
+  toast('✅ นำกลับเข้าคลังแล้ว'); load();
+}
+
+/* ═══ ฟอร์ม SIM ═══ */
+function openSim(num){
+  const s = num ? DB.sims.find(x=>x.sim_number===num) : {};
+  const v = (k,d)=> document.getElementById(k).value = (s && s[d]) || '';
+  v('s-num','sim_number'); v('s-car','carrier'); v('s-promo','promo');
+  v('s-st','promo_start'); v('s-en','promo_end'); v('s-note','note');
+  document.getElementById('s-num').readOnly = !!num;
+  open_('m-sim');
+}
+
+async function saveSim_(){
+  const d = { sim_number: val('s-num').trim(), carrier: val('s-car'), promo: val('s-promo'),
+    promo_start: val('s-st'), promo_end: val('s-en'), note: val('s-note') };
+  if(!d.sim_number) return toast('⚠️ กรุณาระบุเบอร์ SIM');
+  const old = DB.sims.find(x=>x.sim_number===d.sim_number);
+  d.status = old ? old.status : 'SPARE';
+  d.camera_id = old ? old.camera_id : '';
+  const r = await post({action:'saveSim', data:d});
+  if(!r.ok) return toast('❌ ' + r.error, 5000);
+  close_('m-sim'); toast('✅ บันทึก SIM แล้ว'); load();
+}
+
+/* ═══ UTILS ═══ */
+function tab(t){
+  ['map','list','sim'].forEach(x=>document.getElementById('tab-'+x).classList.toggle('hidden', x!==t));
+  document.querySelectorAll('.tabbtn').forEach(b=>
+    b.classList.toggle('on', b.dataset.t===t));
+  if(t==='map' && MAP) google.maps.event.trigger(MAP, 'resize');
+}
+const val = id => document.getElementById(id).value;
+const open_  = id => document.getElementById(id).classList.remove('hidden');
+const close_ = id => document.getElementById(id).classList.add('hidden');
+const esc = s => String(s??'').replace(/[<>&"']/g, m=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[m]));
+function pd(v){
+  if(!v) return null; const s=String(v).trim(); if(!s) return null;
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m){ let y=+m[1]; if(y>2400) y-=543; return new Date(y,+m[2]-1,+m[3]); }
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m){ let y=+m[3]; if(y>2400) y-=543; return new Date(y,+m[2]-1,+m[1]); }
+  const d = new Date(s); return isNaN(d)?null:d;
+}
+function dl(v){ const t=pd(v); if(!t) return null;
+  const n=new Date(); n.setHours(0,0,0,0); return Math.ceil((t-n)/86400000); }
+let tT; function toast(m, ms){ const t=document.getElementById('toast');
+  t.textContent=m; t.classList.remove('hidden'); clearTimeout(tT);
+  tT=setTimeout(()=>t.classList.add('hidden'), ms||2000); }
+
+loadMaps();
+load();
+</script>
+</body>
+</html>
